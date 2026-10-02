@@ -74,8 +74,10 @@
 
 ブラウザで開くページです。ビルドは要りません。
 
-- https://naruto-aii.github.io/yohaku/
+- https://yohaku-neon-ten.vercel.app/
 - リポジトリ内では `docs/index.html`
+
+GitHub Pages は、この環境の権限では有効にできませんでした。リポジトリ設定で main のルートを公開すると、https://naruto-aii.github.io/yohaku/ でも同じページが開きます。
 
 図鑑は `docs/zukan.html`、名前の正本は `catalog/CATALOG.md` です。
 
