@@ -18,6 +18,12 @@
 		E1A10000000000000000002F /* TimerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000002E /* TimerScreen.swift */; };
 		E1A100000000000000000031 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000030 /* SettingsSheet.swift */; };
 		E1A100000000000000000033 /* PaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000032 /* PaySheet.swift */; };
+		E1A10000000000000000003B /* Catalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000003A /* Catalog.swift */; };
+		E1A10000000000000000003D /* GardenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000003C /* GardenStore.swift */; };
+		E1A10000000000000000003F /* PotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000003E /* PotView.swift */; };
+		E1A100000000000000000041 /* PlantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000040 /* PlantView.swift */; };
+		E1A100000000000000000043 /* ShelfSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000042 /* ShelfSheet.swift */; };
+		E1A100000000000000000045 /* PullSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000044 /* PullSheet.swift */; };
 		E1A100000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000038 /* Assets.xcassets */; };
 		E1A100000000000000000036 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000035 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
@@ -34,6 +40,12 @@
 		E1A10000000000000000002E /* TimerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerScreen.swift; sourceTree = "<group>"; };
 		E1A100000000000000000030 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		E1A100000000000000000032 /* PaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaySheet.swift; sourceTree = "<group>"; };
+		E1A10000000000000000003A /* Catalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Catalog.swift; sourceTree = "<group>"; };
+		E1A10000000000000000003C /* GardenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenStore.swift; sourceTree = "<group>"; };
+		E1A10000000000000000003E /* PotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotView.swift; sourceTree = "<group>"; };
+		E1A100000000000000000040 /* PlantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlantView.swift; sourceTree = "<group>"; };
+		E1A100000000000000000042 /* ShelfSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfSheet.swift; sourceTree = "<group>"; };
+		E1A100000000000000000044 /* PullSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullSheet.swift; sourceTree = "<group>"; };
 		E1A100000000000000000034 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E1A100000000000000000035 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E1A100000000000000000037 /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
@@ -66,8 +78,21 @@
 				E1A10000000000000000002E /* TimerScreen.swift */,
 				E1A100000000000000000030 /* SettingsSheet.swift */,
 				E1A100000000000000000032 /* PaySheet.swift */,
+				E1A100000000000000000042 /* ShelfSheet.swift */,
+				E1A100000000000000000044 /* PullSheet.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		E1A100000000000000000046 /* Garden */ = {
+			isa = PBXGroup;
+			children = (
+				E1A10000000000000000003A /* Catalog.swift */,
+				E1A10000000000000000003C /* GardenStore.swift */,
+				E1A10000000000000000003E /* PotView.swift */,
+				E1A100000000000000000040 /* PlantView.swift */,
+			);
+			path = Garden;
 			sourceTree = "<group>";
 		};
 		E1A100000000000000000012 /* Audio */ = {
@@ -110,6 +135,7 @@
 				E1A100000000000000000012 /* Audio */,
 				E1A100000000000000000013 /* Session */,
 				E1A100000000000000000014 /* Purchase */,
+				E1A100000000000000000046 /* Garden */,
 			);
 			path = Yohaku;
 			sourceTree = "<group>";
@@ -210,6 +236,12 @@
 				E1A10000000000000000002F /* TimerScreen.swift in Sources */,
 				E1A100000000000000000031 /* SettingsSheet.swift in Sources */,
 				E1A100000000000000000033 /* PaySheet.swift in Sources */,
+				E1A10000000000000000003B /* Catalog.swift in Sources */,
+				E1A10000000000000000003D /* GardenStore.swift in Sources */,
+				E1A10000000000000000003F /* PotView.swift in Sources */,
+				E1A100000000000000000041 /* PlantView.swift in Sources */,
+				E1A100000000000000000043 /* ShelfSheet.swift in Sources */,
+				E1A100000000000000000045 /* PullSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -45,4 +45,40 @@ enum Copy {
     static let nothingToRestore = "復元できる購入はありません。"
 
     static let audioFailed = "音を開始できませんでした。"
+
+    static let shelf = "棚"
+    static let pull = "引く"
+    static let potWord = "鉢"
+    static let plantWord = "植物"
+    static let grow = "育てる"
+    static let pullThing = "引くもの"
+    static let odds = "N 75%、R 20%、SR 4.5%、SSR 0.5%。同じ稀少度のなかでは、どれも同じ割合です。"
+    static let materialHint = "集中が 60 分たまると、一つ増えます。"
+    static let shelfEmpty = "咲いた花は、ここに並びます。"
+    static let notGrowing = "まだ育っていません。"
+    static let seedTitle = "育てるものを足す"
+    static let seedDetail = "引くものを三つと、12 時間。育っている花があれば、その時間に足します。"
+    static let addSeed = "足す"
+    static let seedAdded = "足しました。"
+    static let seedMissing = "この環境では製品を読み込めません。製品 ID は yohaku_seed です。"
+
+    static func received(_ name: String) -> String {
+        "\(name)を受け取りました。"
+    }
+
+    static func duplicateHours(kind: String, hours: String, bloomed: Bool) -> String {
+        var text = "持っている\(kind)です。育っている植物に \(hours) 時間たしました。"
+        if bloomed {
+            text += "花が咲き、棚に置きました。"
+        }
+        return text
+    }
+
+    static func duplicateMaterial(kind: String) -> String {
+        "持っている\(kind)です。引くものが 0.5 増えました。二つで一回引けます。"
+    }
+
+    static func pendingHours(_ hours: String) -> String {
+        "次に育て始めると、\(hours) 時間から始まります。"
+    }
 }

@@ -23,8 +23,10 @@ final class FocusSession {
     private(set) var breakMinutes = 5
 
     @ObservationIgnored var onFocusCompleted: (() -> Void)?
+    @ObservationIgnored var onFocusElapsed: ((TimeInterval) -> Void)?
     @ObservationIgnored var onChime: (() -> Void)?
     @ObservationIgnored private var endDate: Date?
+    @ObservationIgnored private var focusAccountedAt: Date?
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -58,22 +60,27 @@ final class FocusSession {
         if remaining <= 0.05 {
             remaining = phase == .focus ? focusDuration : breakDuration
         }
+        let now = Date()
         isRunning = true
-        endDate = Date().addingTimeInterval(remaining)
+        endDate = now.addingTimeInterval(remaining)
+        focusAccountedAt = phase == .focus ? now : nil
         startTicking()
     }
 
     func pause() {
         guard isRunning else { return }
+        settleFocus(now: Date())
         if let endDate {
             remaining = max(0, endDate.timeIntervalSinceNow)
         }
         isRunning = false
         self.endDate = nil
+        focusAccountedAt = nil
         stopTicking()
     }
 
     func catchUp(now: Date = .now) {
+        settleFocus(now: now)
         guard isRunning, let end = endDate else { return }
         if now < end {
             remaining = end.timeIntervalSince(now)
@@ -164,6 +171,16 @@ final class FocusSession {
             remaining = 5 * 60
             endDate = nil
         }
+    }
+
+    private func settleFocus(now: Date) {
+        guard isRunning, phase == .focus, let end = endDate, let from = focusAccountedAt else { return }
+        let until = min(now, end)
+        let delta = until.timeIntervalSince(from)
+        if delta > 0 {
+            onFocusElapsed?(delta)
+        }
+        focusAccountedAt = now < end ? now : nil
     }
 
     private func startTicking() {

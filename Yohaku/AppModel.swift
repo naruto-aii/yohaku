@@ -8,11 +8,19 @@ final class AppModel {
     let noise = NoiseEngine()
     let purchases = PurchaseManager()
     let streak = StreakStore()
+    let garden = GardenStore()
 
     @ObservationIgnored private var didStart = false
     @ObservationIgnored private var appliedUnlock: Bool?
 
     init() {
+        session.onFocusElapsed = { [weak self] seconds in
+            self?.garden.recordFocus(seconds: seconds)
+        }
+        purchases.onConsumable = { [weak self] id, productID in
+            guard productID == ProductID.seed else { return }
+            self?.garden.grantSeed(transactionID: id)
+        }
         session.onFocusCompleted = { [weak self] in
             guard let self else { return }
             self.streak.recordCompletion(persist: self.purchases.isUnlocked)

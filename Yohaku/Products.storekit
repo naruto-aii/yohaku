@@ -18,6 +18,21 @@
       "productID" : "yohaku_lifetime",
       "referenceName" : "Lifetime Unlock",
       "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "250",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000003",
+      "localizations" : [
+        {
+          "description" : "引くものを三つと、育ちの時間を十二時間。",
+          "displayName" : "育てるものを足す",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_seed",
+      "referenceName" : "Seed",
+      "type" : "Consumable"
     }
   ],
   "settings" : {

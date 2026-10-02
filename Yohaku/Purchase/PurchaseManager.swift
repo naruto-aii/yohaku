@@ -4,6 +4,7 @@ import StoreKit
 
 enum ProductID {
     static let lifetime = "yohaku_lifetime"
+    static let seed = "yohaku_seed"
 }
 
 @MainActor
@@ -11,10 +12,14 @@ enum ProductID {
 final class PurchaseManager {
     private(set) var isUnlocked = false
     private(set) var product: Product?
+    private(set) var seedProduct: Product?
     private(set) var isLoading = true
     private(set) var isPurchasing = false
+    private(set) var isBuyingSeed = false
     var statusNote: String?
+    var seedNote: String?
 
+    @ObservationIgnored var onConsumable: ((UInt64, String) -> Void)?
     @ObservationIgnored private var updates: Task<Void, Never>?
 
     func startListening() {
@@ -23,8 +28,7 @@ final class PurchaseManager {
             for await result in Transaction.updates {
                 guard let self else { return }
                 guard let transaction = try? self.verified(result) else { continue }
-                await transaction.finish()
-                await self.refreshEntitlements()
+                await self.accept(transaction)
             }
         }
     }
@@ -33,11 +37,13 @@ final class PurchaseManager {
         isLoading = true
         defer { isLoading = false }
         do {
-            let products = try await Product.products(for: [ProductID.lifetime])
+            let products = try await Product.products(for: [ProductID.lifetime, ProductID.seed])
             product = products.first { $0.id == ProductID.lifetime }
+            seedProduct = products.first { $0.id == ProductID.seed }
             await refreshEntitlements()
         } catch {
             product = nil
+            seedProduct = nil
         }
     }
 
@@ -62,8 +68,7 @@ final class PurchaseManager {
             switch result {
             case .success(let verification):
                 let transaction = try verified(verification)
-                await transaction.finish()
-                await refreshEntitlements()
+                await accept(transaction)
             case .userCancelled:
                 break
             case .pending:
@@ -75,6 +80,32 @@ final class PurchaseManager {
             return
         } catch {
             statusNote = Copy.purchaseFailed
+        }
+    }
+
+    func purchaseSeed() async {
+        guard let seedProduct, !isBuyingSeed else { return }
+        isBuyingSeed = true
+        defer { isBuyingSeed = false }
+        seedNote = nil
+        do {
+            let result = try await seedProduct.purchase()
+            switch result {
+            case .success(let verification):
+                let transaction = try verified(verification)
+                await accept(transaction)
+                seedNote = Copy.seedAdded
+            case .userCancelled:
+                break
+            case .pending:
+                seedNote = Copy.purchasePending
+            @unknown default:
+                break
+            }
+        } catch StoreKitError.userCancelled {
+            return
+        } catch {
+            seedNote = Copy.purchaseFailed
         }
     }
 
@@ -91,6 +122,16 @@ final class PurchaseManager {
             return
         } catch {
             statusNote = Copy.purchaseFailed
+        }
+    }
+
+    private func accept(_ transaction: Transaction) async {
+        if transaction.productID == ProductID.seed {
+            onConsumable?(transaction.id, transaction.productID)
+        }
+        await transaction.finish()
+        if transaction.productID == ProductID.lifetime {
+            await refreshEntitlements()
         }
     }
 

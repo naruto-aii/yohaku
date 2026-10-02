@@ -7,6 +7,8 @@ struct TimerScreen: View {
     @State private var sheet: Sheet?
 
     private enum Sheet: String, Identifiable {
+        case shelf
+        case pull
         case settings
         case pay
 
@@ -14,6 +16,8 @@ struct TimerScreen: View {
 
         var detent: CGFloat {
             switch self {
+            case .shelf: 760
+            case .pull: 700
             case .settings: 520
             case .pay: 620
             }
@@ -51,15 +55,11 @@ struct TimerScreen: View {
                         .padding(.top, 14)
                         .multilineTextAlignment(.center)
                 }
-                Button {
-                    sheet = .settings
-                } label: {
-                    Text(Copy.settings)
-                        .font(.system(size: 13))
-                        .tracking(2)
-                        .foregroundStyle(Palette.soft)
+                HStack(spacing: 36) {
+                    quietLink(Copy.shelf) { sheet = .shelf }
+                    quietLink(Copy.pull) { sheet = .pull }
+                    quietLink(Copy.settings) { sheet = .settings }
                 }
-                .buttonStyle(.plain)
                 .padding(.top, 26)
                 .padding(.bottom, 4)
             }
@@ -157,11 +157,25 @@ struct TimerScreen: View {
     @ViewBuilder
     private func sheetView(_ item: Sheet) -> some View {
         switch item {
+        case .shelf:
+            ShelfSheet(model: model, onClose: { sheet = nil })
+        case .pull:
+            PullSheet(model: model, onClose: { sheet = nil })
         case .settings:
             SettingsSheet(model: model, onClose: { sheet = nil }, onPay: { sheet = .pay })
         case .pay:
             PaySheet(model: model, onClose: { sheet = nil })
         }
+    }
+
+    private func quietLink(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13))
+                .tracking(2)
+                .foregroundStyle(Palette.soft)
+        }
+        .buttonStyle(.plain)
     }
 
     private func value(for kind: NoiseKind) -> String {
