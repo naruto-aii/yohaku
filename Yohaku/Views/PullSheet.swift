@@ -3,7 +3,9 @@ import SwiftUI
 struct PullSheet: View {
     var model: AppModel
     var onClose: () -> Void
-    @State private var pool: GachaPool = .pot
+    var onOdds: () -> Void
+    var onPacks: () -> Void
+    @State private var kind: CatalogKind = .plant
 
     var body: some View {
         ScrollView {
@@ -13,52 +15,245 @@ struct PullSheet: View {
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 28)
 
-                HStack(spacing: 32) {
-                    poolButton(.pot)
-                    poolButton(.plant)
+                HStack(spacing: 28) {
+                    kindButton(.plant)
+                    kindButton(.pot)
                 }
-                .padding(.top, 18)
+                .padding(.top, 16)
 
-                Text(Copy.odds)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.soft)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .padding(.top, 18)
-
-                Text("\(Copy.pullThing) \(model.garden.materialLabel)")
-                    .font(.system(size: 16))
+                Text("\(Copy.drops) \(model.garden.dropText)")
+                    .font(.system(size: 18))
                     .monospacedDigit()
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 16)
-                Text(Copy.materialHint)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.faint)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 6)
 
-                Button {
-                    guard model.garden.canPull else { return }
-                    model.garden.pull(pool)
-                } label: {
-                    Text(Copy.pull)
+                Button(Copy.pull) {
+                    model.garden.pull(kind: kind, times: 1)
                 }
                 .buttonStyle(WideDepthStyle())
-                .disabled(!model.garden.canPull)
-                .opacity(model.garden.canPull ? 1 : 0.45)
-                .padding(.top, 18)
+                .disabled(!model.garden.canSingle)
+                .opacity(model.garden.canSingle ? 1 : 0.45)
+                .padding(.top, 16)
 
-                if let result = model.garden.lastResult {
-                    Text(result)
-                        .font(.system(size: 14))
+                Button(Copy.tenPull) {
+                    model.garden.pull(kind: kind, times: 10)
+                }
+                .buttonStyle(WideDepthStyle())
+                .disabled(!model.garden.canTen)
+                .opacity(model.garden.canTen ? 1 : 0.45)
+                .padding(.top, 10)
+
+                VStack(spacing: 6) {
+                    ForEach(Array(model.garden.lastLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Palette.ink)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .padding(.top, 16)
+
+                HStack(spacing: 24) {
+                    Button(Copy.oddsTitle, action: onOdds)
+                    Button(Copy.packs, action: onPacks)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.soft)
+                .padding(.top, 22)
+
+                Button(Copy.close, action: onClose)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.soft)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.surface.ignoresSafeArea())
+        .preferredColorScheme(.light)
+    }
+
+    private func kindButton(_ item: CatalogKind) -> some View {
+        Button {
+            kind = item
+        } label: {
+            Text(item.title)
+                .font(.system(size: 16))
+                .foregroundStyle(kind == item ? Palette.ink : Palette.soft)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct OddsSheet: View {
+    var onClose: () -> Void
+    @State private var kind: CatalogKind = .plant
+    @State private var shown: CatalogItem?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(Copy.oddsTitle)
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(Palette.ink)
+                .padding(.top, 24)
+            Text(Copy.oddsLead)
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.faint)
+                .padding(.top, 6)
+            HStack(spacing: 28) {
+                Button(Copy.plantWord) { kind = .plant }
+                    .foregroundStyle(kind == .plant ? Palette.ink : Palette.soft)
+                Button(Copy.potWord) { kind = .pot }
+                    .foregroundStyle(kind == .pot ? Palette.ink : Palette.soft)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 15))
+            .padding(.top, 12)
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Catalog.items(kind)) { item in
+                        Button {
+                            shown = item
+                        } label: {
+                            HStack {
+                                Text(item.name)
+                                    .foregroundStyle(Palette.ink)
+                                Spacer()
+                                Text(item.rarity.label)
+                                    .foregroundStyle(Palette.faint)
+                                Text(item.percentText)
+                                    .monospacedDigit()
+                                    .foregroundStyle(Palette.soft)
+                                    .frame(width: 72, alignment: .trailing)
+                            }
+                            .font(.system(size: 15))
+                            .padding(.vertical, 9)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 28)
+            }
+
+            Button(Copy.close, action: onClose)
+                .buttonStyle(.plain)
+                .font(.system(size: 14))
+                .foregroundStyle(Palette.soft)
+                .padding(.vertical, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.surface.ignoresSafeArea())
+        .preferredColorScheme(.light)
+        .sheet(item: $shown) { item in
+            ItemPicture(item: item, onClose: { shown = nil })
+        }
+    }
+}
+
+struct ItemPicture: View {
+    var item: CatalogItem
+    var onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(item.name)
+                .font(.system(size: 24, weight: .light))
+                .foregroundStyle(Palette.ink)
+                .padding(.top, 28)
+            Text("\(item.rarity.label)  \(item.percentText)")
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.soft)
+            if let image = item.bundledImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 280)
+                    .padding(.top, 8)
+            } else {
+                Text(Copy.noPicture)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.soft)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 24)
+            }
+            if item.standIn {
+                Text(Copy.standIn)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.faint)
+            }
+            Text(item.sourceNote)
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.faint)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            Button(Copy.close, action: onClose)
+                .buttonStyle(.plain)
+                .font(.system(size: 14))
+                .foregroundStyle(Palette.soft)
+                .padding(.top, 8)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.surface.ignoresSafeArea())
+        .preferredColorScheme(.light)
+    }
+}
+
+struct PackSheet: View {
+    @Bindable var model: AppModel
+    var onClose: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                Text(Copy.packs)
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(Palette.ink)
+                    .padding(.top, 28)
+                Text("\(model.garden.dropText)")
+                    .font(.system(size: 22))
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.ink)
+                    .padding(.top, 8)
+                Text(Copy.packLead)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.soft)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
+
+                ForEach(DropPack.allCases) { pack in
+                    Button {
+                        Task { await model.purchases.purchase(pack: pack) }
+                    } label: {
+                        HStack {
+                            Text("\(pack.drops)")
+                                .monospacedDigit()
+                            Spacer()
+                            Text(model.purchases.priceText(for: pack))
+                                .multilineTextAlignment(.trailing)
+                        }
+                        .font(.system(size: 15))
                         .foregroundStyle(Palette.ink)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .padding(.top, 16)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 14)
+                    }
+                    .buttonStyle(.plain)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(Palette.insetFill))
+                    .disabled(model.purchases.buyingPack != nil)
+                    .padding(.top, 10)
                 }
 
-                seed
-                    .padding(.top, 28)
+                if let note = model.purchases.packNote {
+                    Text(note)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.soft)
+                        .padding(.top, 14)
+                }
 
                 Button(Copy.close, action: onClose)
                     .buttonStyle(.plain)
@@ -67,73 +262,10 @@ struct PullSheet: View {
                     .padding(.top, 18)
                     .padding(.bottom, 24)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 28)
         }
-        .scrollBounceBehavior(.basedOnSize)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.surface.ignoresSafeArea())
         .preferredColorScheme(.light)
-    }
-
-    private func poolButton(_ item: GachaPool) -> some View {
-        Button {
-            pool = item
-        } label: {
-            Text(item.title)
-                .font(.system(size: 16))
-                .foregroundStyle(pool == item ? Palette.ink : Palette.faint)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(pool == item ? .isSelected : [])
-    }
-
-    private var seed: some View {
-        VStack(spacing: 8) {
-            Text(Copy.seedTitle)
-                .font(.system(size: 16))
-                .foregroundStyle(Palette.ink)
-            Text(Copy.seedDetail)
-                .font(.system(size: 13))
-                .foregroundStyle(Palette.soft)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-
-            if let product = model.purchases.seedProduct {
-                Text(product.displayPrice)
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(Palette.ink)
-                    .padding(.top, 8)
-            } else {
-                Text(model.purchases.isLoading ? Copy.loadingPrice : Copy.priceUnavailable)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.soft)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 8)
-            }
-
-            if model.purchases.seedProduct == nil, !model.purchases.isLoading {
-                Text(Copy.seedMissing)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.soft)
-                    .multilineTextAlignment(.center)
-            }
-
-            Button {
-                guard model.purchases.seedProduct != nil, !model.purchases.isBuyingSeed else { return }
-                Task { await model.purchases.purchaseSeed() }
-            } label: {
-                Text(model.purchases.isBuyingSeed ? Copy.purchasing : Copy.addSeed)
-            }
-            .buttonStyle(WideDepthStyle())
-            .padding(.top, 8)
-
-            if let note = model.purchases.seedNote {
-                Text(note)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.soft)
-                    .multilineTextAlignment(.center)
-            }
-        }
     }
 }

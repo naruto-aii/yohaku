@@ -1,15 +1,24 @@
 import Foundation
+import UIKit
 
-// Rarity follows the real plant and the real vessel.
-// Common weeds and grasses stay N. Garden flowers sit at R.
-// Esteemed trees and shrubs sit at SR. The four rarest named plants are SSR.
-// Plain clay forms are N, a glaze or a foot is R, stone or cut facets are SR,
-// and thin porcelain is SSR.
+// Names, rarities, and rates come from catalog/CATALOG.md.
+// Stand-in drawings are the flat pictures in CatalogArt.
+// This file does not invent species.
 
-enum Rarity: String, Codable, CaseIterable, Identifiable {
+enum CatalogKind: String, Codable {
+    case plant
+    case pot
+
+    var title: String {
+        switch self {
+        case .plant: "植物"
+        case .pot: "鉢"
+        }
+    }
+}
+
+enum Rarity: String, Codable, CaseIterable {
     case n, r, sr, ssr
-
-    var id: String { rawValue }
 
     var label: String {
         switch self {
@@ -20,7 +29,6 @@ enum Rarity: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Hours of focus a plant of this rarity needs before it can bloom.
     var completionHours: Double {
         switch self {
         case .n: 30
@@ -30,7 +38,6 @@ enum Rarity: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// The pot shortens the hours the plant still needs.
     var potMultiplier: Double {
         switch self {
         case .n: 1.1
@@ -40,17 +47,7 @@ enum Rarity: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Focus hours added when a duplicate arrives while something is growing.
-    var duplicateHours: Double {
-        switch self {
-        case .n: 1
-        case .r: 3
-        case .sr: 8
-        case .ssr: 20
-        }
-    }
-
-    /// Odds inside the chosen pool: N 75%, R 20%, SR 4.5%, SSR 0.5%.
+    /// Pool odds: N 75%, R 20%, SR 4.5%, SSR 0.5%.
     static func rolled(_ unit: Double) -> Rarity {
         if unit < 0.75 { return .n }
         if unit < 0.95 { return .r }
@@ -60,31 +57,26 @@ enum Rarity: String, Codable, CaseIterable, Identifiable {
 }
 
 enum GrowthMath {
-    // 薄い菊 N 30 / 丸 N 1.1 = 27.272… hours
-    // 松 SR 100 / 石 SR 1.3 = 76.923… hours
-    // 藤 SSR 200 / 薄磁 SSR 1.5 = 133.333… hours
+    static let stageCount = 32
+
     static func requiredHours(plant: Rarity, pot: Rarity) -> Double {
         plant.completionHours / pot.potMultiplier
     }
 
-    /// 0 soil, 1 sprout, 2 leaves, 3 bud, 4 bloom.
-    static func stage(hours: Double, required: Double) -> Int {
-        guard required > 0 else { return 4 }
-        let progress = hours / required
-        if progress >= 1 { return 4 }
-        if progress >= 0.75 { return 3 }
-        if progress >= 0.5 { return 2 }
-        if progress >= 0.25 { return 1 }
-        return 0
+    static func stageIndex(display: Double, bloomed: Bool) -> Int {
+        if bloomed { return stageCount }
+        let clamped = min(0.999, max(0, display))
+        return min(stageCount - 1, Int(clamped * Double(stageCount)))
     }
 
-    static func stageWord(_ stage: Int) -> String {
-        switch stage {
-        case 0: "土"
-        case 1: "芽"
-        case 2: "葉"
-        case 3: "蕾"
-        default: "花"
+    static func stageWord(_ index: Int) -> String {
+        if index >= stageCount { return "咲" }
+        switch index {
+        case 0..<6: return "土"
+        case 6..<13: return "芽"
+        case 13..<21: return "葉"
+        case 21..<28: return "蕾"
+        default: return "花"
         }
     }
 
@@ -93,270 +85,260 @@ enum GrowthMath {
         if abs(value - whole) < 0.001 {
             return String(Int(whole))
         }
-        return String(format: "%.1f", value)
+        var text = String(format: "%.3f", value)
+        while text.last == "0" {
+            text.removeLast()
+        }
+        if text.last == "." {
+            text.removeLast()
+        }
+        return text
     }
 }
 
-struct PotSpec: Identifiable, Hashable {
+struct CatalogItem: Identifiable, Hashable {
     let name: String
     let rarity: Rarity
-    let width: Double
-    let height: Double
-    let neck: Double
-    let foot: Double
-    let belly: Double
-    let tone: Double
-    let warmth: Double
-    let glaze: Double
-    let hue: Int
-    let facets: Int
-    let thin: Bool
-    let corners: Int
+    let kind: CatalogKind
+    let percentText: String
+    let imageName: String?
+    let imageExtension: String?
+    let standIn: Bool
+    let sourceNote: String
 
     var id: String { name }
-}
 
-struct PlantSpec: Identifiable, Hashable {
-    let name: String
-    let rarity: Rarity
-    /// 0 grass, 1 rosette, 2 upright, 3 spray, 4 single bloom, 5 vine, 6 tree, 7 moss, 8 spike, 9 broad leaf.
-    let habit: Int
-    let count: Int
-    let lean: Double
-    let green: Double
-    /// 0 seed, 1 white, 2 cream, 3 rose, 4 berry, 5 violet, 6 dusk.
-    let flower: Int
-    let scale: Double
+    var bundledURL: URL? {
+        guard let imageName, let imageExtension else { return nil }
+        let ext = imageExtension.hasPrefix(".") ? String(imageExtension.dropFirst()) : imageExtension
+        return Bundle.main.url(
+            forResource: imageName,
+            withExtension: ext,
+            subdirectory: "CatalogArt"
+        )
+    }
 
-    var id: String { name }
+    var bundledImage: UIImage? {
+        guard let bundledURL else { return nil }
+        return UIImage(contentsOfFile: bundledURL.path)
+    }
 }
 
 enum Catalog {
-    static func pot(_ name: String) -> PotSpec? { potsByName[name] }
-    static func plant(_ name: String) -> PlantSpec? { plantsByName[name] }
+    static let starterPlant = "蒲公英"
+    static let starterPot = "丸"
+    static let holdingCap = 80
 
-    static let potsByName: [String: PotSpec] = Dictionary(uniqueKeysWithValues: pots.map { ($0.name, $0) })
-    static let plantsByName: [String: PlantSpec] = Dictionary(uniqueKeysWithValues: plants.map { ($0.name, $0) })
-
-    static let pots: [PotSpec] = [
-        p("丸", .n, 1.020, 0.700, 0.050, 0.000, 0.220, 0.560, 0.140, 0.000, 0, 0, false, 0),
-        p("細筒", .n, 0.460, 1.240, 0.100, 0.000, 0.020, 0.500, 0.100, 0.000, 0, 0, false, 0),
-        p("杯", .n, 0.860, 0.560, 0.020, 0.000, 0.050, 0.620, 0.160, 0.000, 0, 0, false, 0),
-        p("黒土", .n, 0.940, 0.760, 0.080, 0.000, 0.100, 0.140, 0.020, 0.000, 0, 0, false, 0),
-        p("角", .n, 0.820, 0.740, 0.020, 0.000, 0.000, 0.480, 0.120, 0.000, 0, 0, false, 4),
-        p("皿", .n, 1.260, 0.380, 0.000, 0.000, 0.020, 0.640, 0.120, 0.000, 0, 0, false, 0),
-        p("舟", .n, 1.200, 0.460, 0.120, 0.000, 0.040, 0.540, 0.100, 0.000, 0, 0, false, 0),
-        p("片口", .n, 0.980, 0.580, 0.160, 0.000, 0.080, 0.520, 0.120, 0.000, 0, 0, false, 0),
-        p("楕円", .n, 1.160, 0.520, 0.060, 0.000, 0.100, 0.580, 0.120, 0.000, 0, 0, false, 0),
-        p("太筒", .n, 0.740, 1.100, 0.040, 0.000, 0.040, 0.500, 0.120, 0.000, 0, 0, false, 0),
-        p("素焼", .n, 0.740, 0.680, 0.000, 0.000, 0.100, 0.480, 0.200, 0.000, 0, 0, false, 0),
-        p("荒土", .n, 0.790, 0.860, 0.040, 0.000, 0.140, 0.320, 0.160, 0.000, 0, 0, false, 0),
-        p("赤土", .n, 0.840, 0.500, 0.080, 0.000, -0.060, 0.400, 0.460, 0.000, 0, 0, false, 0),
-        p("白土", .n, 0.890, 0.680, 0.120, 0.000, -0.020, 0.860, 0.040, 0.000, 0, 0, false, 0),
-        p("砂土", .n, 0.940, 0.860, 0.160, 0.000, 0.020, 0.720, 0.220, 0.000, 0, 0, false, 0),
-        p("灰土", .n, 0.990, 0.500, 0.000, 0.000, 0.060, 0.600, -0.020, 0.000, 0, 0, false, 0),
-        p("鼓", .n, 0.780, 0.700, 0.220, 0.000, -0.080, 0.480, 0.080, 0.000, 0, 0, false, 0),
-        p("玉", .n, 0.880, 0.800, 0.180, 0.000, 0.280, 0.520, 0.110, 0.000, 0, 0, false, 0),
-        p("猪口", .n, 0.600, 0.500, 0.000, 0.000, 0.060, 0.560, 0.140, 0.000, 0, 0, false, 0),
-        p("徳利", .n, 0.520, 1.080, 0.300, 0.000, 0.180, 0.600, 0.170, 0.000, 0, 0, false, 0),
-        p("手付", .n, 0.840, 0.660, 0.100, 0.000, 0.080, 0.640, 0.080, 0.000, 0, 0, false, 0),
-        p("苗鉢", .n, 0.900, 0.620, 0.040, 0.000, 0.060, 0.400, 0.110, 0.000, 0, 0, false, 0),
-        p("半切", .n, 1.120, 0.480, 0.020, 0.000, 0.040, 0.440, 0.140, 0.000, 0, 0, false, 0),
-        p("湯呑", .n, 0.640, 0.780, 0.040, 0.000, 0.040, 0.480, 0.170, 0.000, 0, 0, false, 0),
-        p("建水", .n, 1.100, 0.500, 0.080, 0.000, 0.060, 0.520, 0.080, 0.000, 0, 0, false, 0),
-        p("壺", .n, 0.900, 0.880, 0.240, 0.000, 0.260, 0.560, 0.110, 0.000, 0, 0, false, 0),
-        p("甕", .n, 1.080, 0.920, 0.180, 0.000, 0.200, 0.600, 0.140, 0.000, 0, 0, false, 0),
-        p("坩", .n, 0.700, 0.840, 0.200, 0.000, 0.160, 0.640, 0.170, 0.000, 0, 0, false, 0),
-        p("長皿", .n, 1.300, 0.340, 0.000, 0.000, 0.000, 0.400, 0.080, 0.000, 0, 0, false, 0),
-        p("四方", .n, 0.760, 0.780, 0.160, 0.000, 0.000, 0.440, 0.110, 0.000, 0, 0, false, 4),
-        p("六角", .n, 0.800, 0.720, 0.000, 0.000, 0.020, 0.480, 0.140, 0.000, 0, 0, false, 6),
-        p("植木", .n, 0.960, 0.800, 0.060, 0.000, 0.080, 0.520, 0.170, 0.000, 0, 0, false, 0),
-        p("釣瓶", .n, 0.720, 0.960, 0.200, 0.000, 0.100, 0.560, 0.080, 0.000, 0, 0, false, 0),
-        p("茶入", .n, 0.560, 0.640, 0.160, 0.000, 0.120, 0.600, 0.110, 0.000, 0, 0, false, 0),
-        p("花入", .n, 0.480, 1.160, 0.140, 0.000, 0.060, 0.640, 0.140, 0.000, 0, 0, false, 0),
-        p("寸胴", .n, 0.680, 1.120, 0.020, 0.000, 0.000, 0.400, 0.170, 0.000, 0, 0, false, 0),
-        p("豆鉢", .n, 0.660, 0.440, 0.020, 0.000, 0.140, 0.440, 0.080, 0.000, 0, 0, false, 0),
-        p("椀", .n, 0.980, 0.580, 0.000, 0.000, 0.160, 0.480, 0.110, 0.000, 0, 0, false, 0),
-        p("向付", .n, 1.080, 0.420, 0.040, 0.000, 0.080, 0.520, 0.140, 0.000, 0, 0, false, 0),
-        p("土瓶", .n, 0.920, 0.700, 0.140, 0.000, 0.140, 0.560, 0.170, 0.000, 0, 0, false, 0),
-        p("高台", .r, 0.980, 0.660, 0.040, 0.260, 0.120, 0.540, 0.120, 0.000, 0, 0, false, 0),
-        p("高杯", .r, 0.700, 0.480, 0.020, 0.340, 0.040, 0.580, 0.100, 0.000, 0, 0, false, 0),
-        p("足付", .r, 0.920, 0.600, 0.080, 0.220, 0.080, 0.480, 0.140, 0.000, 2, 0, false, 0),
-        p("片高台", .r, 0.880, 0.640, 0.080, 0.160, 0.140, 0.520, 0.170, 0.000, 3, 0, false, 0),
-        p("灰釉", .r, 0.840, 0.680, 0.160, 0.000, 0.100, 0.500, 0.020, 0.620, 0, 0, false, 0),
-        p("粉引", .r, 0.890, 0.860, 0.000, 0.000, 0.140, 0.740, 0.060, 0.520, 3, 0, false, 0),
-        p("青磁", .r, 0.940, 0.680, 0.040, 0.000, -0.060, 0.520, -0.020, 0.580, 1, 0, false, 0),
-        p("黒釉", .r, 0.990, 0.680, 0.080, 0.000, -0.020, 0.280, 0.000, 0.640, 2, 0, false, 0),
-        p("白釉", .r, 0.640, 0.860, 0.120, 0.000, 0.020, 0.780, 0.040, 0.500, 3, 0, false, 0),
-        p("鉄釉", .r, 0.690, 0.500, 0.160, 0.000, 0.060, 0.340, 0.160, 0.560, 4, 0, false, 0),
-        p("塩釉", .r, 0.740, 0.680, 0.000, 0.000, 0.100, 0.580, 0.080, 0.480, 0, 0, false, 0),
-        p("三島", .r, 0.790, 0.860, 0.040, 0.080, 0.140, 0.560, 0.080, 0.400, 0, 0, false, 0),
-        p("刷毛目", .r, 0.840, 0.500, 0.080, 0.000, -0.060, 0.660, 0.080, 0.460, 3, 0, false, 0),
-        p("貫入", .r, 0.890, 0.680, 0.120, 0.060, -0.020, 0.700, 0.060, 0.440, 3, 0, false, 0),
-        p("灰被", .r, 0.940, 0.860, 0.160, 0.000, 0.020, 0.420, 0.040, 0.600, 0, 0, false, 0),
-        p("胡麻", .r, 0.990, 0.500, 0.000, 0.000, 0.060, 0.400, 0.180, 0.500, 4, 0, false, 0),
-        p("志野", .r, 0.640, 0.680, 0.040, 0.100, 0.100, 0.760, 0.100, 0.420, 3, 0, false, 0),
-        p("伊羅保", .r, 0.690, 0.860, 0.080, 0.000, 0.140, 0.460, 0.200, 0.360, 4, 0, false, 0),
-        p("呉須", .r, 0.740, 0.500, 0.120, 0.000, -0.060, 0.620, 0.020, 0.340, 5, 0, false, 0),
-        p("耳付", .r, 0.960, 0.700, 0.160, 0.100, -0.020, 0.600, 0.170, 0.220, 0, 0, false, 0),
-        p("吊鉢", .r, 0.780, 0.720, 0.180, 0.000, 0.020, 0.640, 0.080, 0.300, 0, 0, false, 0),
-        p("蓋鉢", .r, 0.900, 0.780, 0.040, 0.080, 0.060, 0.400, 0.110, 0.280, 3, 0, false, 0),
-        p("木瓜", .r, 1.040, 0.580, 0.080, 0.120, 0.160, 0.440, 0.140, 0.000, 2, 0, false, 6),
-        p("御本", .r, 0.990, 0.860, 0.120, 0.000, 0.140, 0.720, 0.220, 0.400, 3, 0, false, 0),
-        p("石", .sr, 1.080, 0.600, 0.020, 0.020, 0.060, 0.300, -0.160, 0.000, 0, 5, false, 0),
-        p("玉石", .sr, 0.920, 0.820, 0.160, 0.020, 0.280, 0.340, -0.140, 0.000, 0, 4, false, 0),
-        p("切石", .sr, 0.860, 0.700, 0.080, 0.020, 0.000, 0.280, -0.180, 0.000, 0, 6, false, 4),
-        p("割石", .sr, 1.020, 0.640, 0.120, 0.020, 0.160, 0.240, -0.120, 0.000, 0, 5, false, 0),
-        p("砂岩", .sr, 1.000, 0.580, 0.160, 0.020, 0.100, 0.420, -0.020, 0.000, 0, 5, false, 0),
-        p("玄武", .sr, 0.960, 0.660, 0.000, 0.020, 0.140, 0.120, -0.200, 0.000, 0, 5, false, 0),
-        p("石灰", .sr, 0.900, 0.620, 0.040, 0.020, -0.060, 0.500, -0.060, 0.000, 0, 4, false, 0),
-        p("面取", .sr, 0.800, 0.840, 0.060, 0.020, -0.020, 0.320, -0.140, 0.000, 0, 8, false, 0),
-        p("鎬", .sr, 0.660, 0.960, 0.120, 0.020, 0.020, 0.260, -0.160, 0.000, 0, 7, false, 0),
-        p("輪花", .sr, 1.060, 0.560, 0.160, 0.020, 0.120, 0.360, -0.100, 0.000, 0, 6, false, 6),
-        p("御影", .sr, 0.940, 0.740, 0.000, 0.020, 0.100, 0.300, -0.120, 0.000, 0, 6, false, 0),
-        p("溶岩", .sr, 1.000, 0.680, 0.040, 0.020, 0.180, 0.180, -0.100, 0.000, 0, 5, false, 0),
-        p("薄磁", .ssr, 1.020, 0.540, 0.040, 0.050, 0.080, 0.900, 0.020, 0.120, 3, 0, true, 0),
-        p("卵殻", .ssr, 0.560, 0.380, 0.020, 0.030, 0.060, 0.940, 0.020, 0.080, 3, 0, true, 0),
-        p("影青", .ssr, 0.920, 0.600, 0.080, 0.140, 0.100, 0.800, -0.020, 0.360, 1, 0, true, 0),
-        p("白磁", .ssr, 0.480, 1.100, 0.080, 0.060, 0.020, 0.900, 0.020, 0.100, 3, 0, true, 0),
-    ]
-
-    static let plants: [PlantSpec] = [
-        f("雑草", .n, 0, 6, 0.020, 0.340, 0, 0.780),
-        f("蒲公英", .n, 1, 7, -0.020, 0.400, 2, 0.740),
-        f("蓬", .n, 9, 5, 0.060, 0.520, 0, 0.860),
-        f("薄い菊", .n, 3, 4, 0.000, 0.380, 1, 0.800),
-        f("芒", .n, 0, 3, 0.120, 0.460, 0, 0.940),
-        f("野花", .n, 3, 5, -0.080, 0.420, 2, 0.760),
-        f("菊の芽", .n, 1, 4, 0.040, 0.500, 0, 0.660),
-        f("詰草", .n, 1, 5, 0.090, 0.630, 0, 0.700),
-        f("葦", .n, 8, 4, -0.120, 0.680, 0, 0.920),
-        f("茅", .n, 0, 5, -0.090, 0.280, 0, 0.880),
-        f("葛", .n, 9, 3, -0.060, 0.330, 0, 0.840),
-        f("苔", .n, 7, 8, -0.030, 0.380, 0, 0.600),
-        f("土筆", .n, 8, 2, 0.000, 0.430, 0, 0.720),
-        f("薺", .n, 1, 4, 0.030, 0.480, 0, 0.800),
-        f("繁縷", .n, 8, 5, 0.060, 0.530, 0, 0.840),
-        f("車前", .n, 7, 6, 0.090, 0.580, 0, 0.680),
-        f("露草", .n, 9, 3, -0.120, 0.630, 0, 0.720),
-        f("蕨", .n, 9, 4, -0.090, 0.680, 0, 0.820),
-        f("笹", .n, 0, 4, -0.060, 0.280, 0, 0.900),
-        f("片喰", .n, 1, 3, -0.030, 0.330, 0, 0.640),
-        f("浮草", .n, 7, 6, 0.000, 0.380, 0, 0.580),
-        f("狗尾", .n, 8, 3, 0.030, 0.430, 0, 0.800),
-        f("野茨", .n, 9, 5, 0.060, 0.480, 0, 0.760),
-        f("母子", .n, 2, 6, 0.090, 0.530, 0, 0.800),
-        f("稗", .n, 0, 3, -0.120, 0.580, 0, 0.840),
-        f("苜蓿", .n, 1, 4, -0.090, 0.630, 0, 0.680),
-        f("蓮華", .n, 8, 5, -0.060, 0.680, 0, 0.720),
-        f("紫蘇", .n, 7, 6, -0.030, 0.280, 0, 0.760),
-        f("薄荷", .n, 9, 3, 0.000, 0.330, 0, 0.800),
-        f("芹", .n, 2, 4, 0.030, 0.380, 0, 0.840),
-        f("三葉", .n, 0, 5, 0.060, 0.430, 0, 0.680),
-        f("虎杖", .n, 1, 6, 0.090, 0.480, 0, 0.720),
-        f("苡", .n, 8, 3, -0.120, 0.530, 0, 0.760),
-        f("菅", .n, 7, 4, -0.090, 0.580, 0, 0.800),
-        f("芝", .n, 0, 7, -0.060, 0.630, 0, 0.620),
-        f("藜", .n, 2, 6, -0.030, 0.680, 0, 0.680),
-        f("蒲", .n, 8, 2, 0.000, 0.280, 0, 0.900),
-        f("麦", .n, 1, 4, 0.030, 0.330, 0, 0.760),
-        f("稲", .n, 8, 5, 0.060, 0.380, 0, 0.800),
-        f("菰", .n, 7, 6, 0.090, 0.430, 0, 0.840),
-        f("雛菊", .r, 4, 8, 0.000, 0.400, 1, 0.840),
-        f("羊歯", .r, 9, 6, -0.040, 0.580, 0, 0.920),
-        f("菫", .r, 4, 5, 0.050, 0.480, 5, 0.700),
-        f("赤い実", .r, 3, 4, 0.080, 0.500, 4, 0.880),
-        f("一輪", .r, 4, 5, -0.030, 0.360, 1, 0.900),
-        f("萩", .r, 3, 6, 0.030, 0.530, 5, 0.940),
-        f("彼岸花", .r, 2, 6, 0.060, 0.580, 4, 0.980),
-        f("萱草", .r, 2, 6, 0.090, 0.630, 2, 0.920),
-        f("桔梗", .r, 4, 5, -0.120, 0.680, 5, 0.880),
-        f("紫陽花", .r, 3, 7, -0.090, 0.280, 5, 0.960),
-        f("山茶花", .r, 6, 4, -0.060, 0.330, 3, 0.980),
-        f("水仙", .r, 2, 6, -0.030, 0.380, 1, 0.860),
-        f("桜草", .r, 2, 4, 0.000, 0.430, 1, 0.820),
-        f("菖蒲", .r, 3, 5, 0.030, 0.480, 2, 0.855),
-        f("朝顔", .r, 5, 4, 0.060, 0.530, 5, 0.900),
-        f("小菊", .r, 3, 8, 0.090, 0.580, 1, 0.860),
-        f("木犀", .r, 9, 4, -0.120, 0.630, 4, 0.820),
-        f("沈丁", .r, 5, 5, -0.090, 0.680, 1, 0.855),
-        f("空木", .r, 2, 6, -0.060, 0.280, 1, 0.890),
-        f("連翹", .r, 3, 7, -0.030, 0.330, 2, 0.925),
-        f("辛夷", .r, 4, 4, 0.000, 0.380, 3, 0.820),
-        f("撫子", .r, 1, 5, 0.030, 0.430, 5, 0.855),
-        f("紫苑", .r, 9, 6, 0.060, 0.480, 4, 0.890),
-        f("吾亦紅", .r, 5, 7, 0.090, 0.530, 1, 0.925),
-        f("松", .sr, 6, 4, 0.000, 0.740, 0, 1.140),
-        f("白椿", .sr, 6, 5, 0.040, 0.600, 1, 1.040),
-        f("南天", .sr, 3, 5, -0.050, 0.580, 4, 1.020),
-        f("梅", .sr, 6, 5, -0.030, 0.430, 1, 1.060),
-        f("楓", .sr, 6, 5, 0.000, 0.480, 4, 1.080),
-        f("桜", .sr, 6, 6, 0.030, 0.530, 3, 1.100),
-        f("杜若", .sr, 2, 3, 0.060, 0.580, 5, 1.000),
-        f("竜胆", .sr, 2, 4, 0.090, 0.630, 5, 0.980),
-        f("石楠花", .sr, 6, 6, -0.120, 0.680, 3, 1.080),
-        f("万両", .sr, 3, 5, -0.090, 0.280, 4, 0.960),
-        f("沙羅", .sr, 6, 5, -0.060, 0.330, 1, 1.120),
-        f("檜", .sr, 6, 3, -0.030, 0.620, 0, 1.160),
-        f("白菊", .ssr, 4, 12, 0.000, 0.400, 1, 1.240),
-        f("百合", .ssr, 2, 6, 0.020, 0.460, 1, 1.340),
-        f("藤", .ssr, 5, 8, -0.100, 0.500, 5, 1.200),
-        f("ラフレシア", .ssr, 4, 1, 0.000, 0.280, 6, 1.300),
-    ]
-
-    private static func p(
-        _ name: String,
-        _ rarity: Rarity,
-        _ width: Double,
-        _ height: Double,
-        _ neck: Double,
-        _ foot: Double,
-        _ belly: Double,
-        _ tone: Double,
-        _ warmth: Double,
-        _ glaze: Double,
-        _ hue: Int,
-        _ facets: Int,
-        _ thin: Bool,
-        _ corners: Int
-    ) -> PotSpec {
-        PotSpec(
-            name: name,
-            rarity: rarity,
-            width: width,
-            height: height,
-            neck: neck,
-            foot: foot,
-            belly: belly,
-            tone: tone,
-            warmth: warmth,
-            glaze: glaze,
-            hue: hue,
-            facets: facets,
-            thin: thin,
-            corners: corners
-        )
+    static func item(_ name: String, kind: CatalogKind) -> CatalogItem? {
+        switch kind {
+        case .plant: return plantIndex[name]
+        case .pot: return potIndex[name]
+        }
     }
 
-    private static func f(
-        _ name: String,
-        _ rarity: Rarity,
-        _ habit: Int,
-        _ count: Int,
-        _ lean: Double,
-        _ green: Double,
-        _ flower: Int,
-        _ scale: Double
-    ) -> PlantSpec {
-        PlantSpec(
-            name: name,
-            rarity: rarity,
-            habit: habit,
-            count: count,
-            lean: lean,
-            green: green,
-            flower: flower,
-            scale: scale
-        )
+    static func items(_ kind: CatalogKind) -> [CatalogItem] {
+        kind == .plant ? plants : pots
+    }
+
+    static func roll(kind: CatalogKind, rarityUnit: Double, indexUnit: Double) -> CatalogItem {
+        let rarity = Rarity.rolled(rarityUnit)
+        let pool = items(kind).filter { $0.rarity == rarity }
+        let index = min(pool.count - 1, Int(indexUnit * Double(pool.count)))
+        return pool[max(0, index)]
+    }
+
+    static let plantIndex: [String: CatalogItem] = Dictionary(uniqueKeysWithValues: plants.map { ($0.name, $0) })
+    static let potIndex: [String: CatalogItem] = Dictionary(uniqueKeysWithValues: pots.map { ($0.name, $0) })
+
+    static let plants: [CatalogItem] = [
+        CatalogItem(name: "蒲公英", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-tampopo", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-tampopo.png"),
+        CatalogItem(name: "白詰草", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 上段左から2"),
+        CatalogItem(name: "雑草", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 上段左から3"),
+        CatalogItem(name: "蓬", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 上段左から4"),
+        CatalogItem(name: "猫じゃらし", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 上段左から5"),
+        CatalogItem(name: "オオバコ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 下段左から1"),
+        CatalogItem(name: "ドクダミ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 下段左から2"),
+        CatalogItem(name: "ハコベ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 下段左から3"),
+        CatalogItem(name: "ナズナ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "1948048f901039aac206e7413c28b7cb869f45fffc69c23c415d01976c8d9a29.jpg 左から1"),
+        CatalogItem(name: "スギナ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "ffdb09cdf7a8d7d19438afb003e85c13730e7a97ca993aef05ccb7f768320389.jpg 下段左から5"),
+        CatalogItem(name: "ツユクサ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "9fcdbf56986a98bcc43a8f16d635e3cdaff00a45eb62142edddaa2b68666af7e.jpg 上段左から1"),
+        CatalogItem(name: "カタバミ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "9fcdbf56986a98bcc43a8f16d635e3cdaff00a45eb62142edddaa2b68666af7e.jpg 上段左から2"),
+        CatalogItem(name: "オヒシバ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-ohishiba", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-ohishiba.png"),
+        CatalogItem(name: "メヒシバ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-mehishiba", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-mehishiba.png"),
+        CatalogItem(name: "ホトケノザ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-hotokenoza", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-hotokenoza.png"),
+        CatalogItem(name: "カラスノエンドウ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "9fcdbf56986a98bcc43a8f16d635e3cdaff00a45eb62142edddaa2b68666af7e.jpg 下段左から1"),
+        CatalogItem(name: "ヒメジョオン", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "9fcdbf56986a98bcc43a8f16d635e3cdaff00a45eb62142edddaa2b68666af7e.jpg 下段左から2"),
+        CatalogItem(name: "ハルジオン", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-harujion", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-harujion.png"),
+        CatalogItem(name: "ノゲシ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "9fcdbf56986a98bcc43a8f16d635e3cdaff00a45eb62142edddaa2b68666af7e.jpg 下段左から4"),
+        CatalogItem(name: "ハハコグサ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "9fcdbf56986a98bcc43a8f16d635e3cdaff00a45eb62142edddaa2b68666af7e.jpg 下段左から5"),
+        CatalogItem(name: "セイタカアワダチソウ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 上段左から1"),
+        CatalogItem(name: "オオイヌノフグリ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 上段左から2"),
+        CatalogItem(name: "ヨモギ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 上段左から3"),
+        CatalogItem(name: "ススキ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 上段左から4"),
+        CatalogItem(name: "カヤツリグサ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-kayatsurigusa", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-kayatsurigusa.png"),
+        CatalogItem(name: "イヌタデ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 下段左から1"),
+        CatalogItem(name: "エノコログサ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 下段左から2"),
+        CatalogItem(name: "アカザ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 下段左から3"),
+        CatalogItem(name: "シバ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 下段左から4"),
+        CatalogItem(name: "クズ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "e395d52c863e2972cb7316f9e9f69038edb6aa892af10bf413b2e073acfd96c3.jpg 下段左から5"),
+        CatalogItem(name: "スズメノテッポウ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 上段左から1"),
+        CatalogItem(name: "イヌビエ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 上段左から2"),
+        CatalogItem(name: "イヌガラシ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 上段左から3"),
+        CatalogItem(name: "カラスムギ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 上段左から4"),
+        CatalogItem(name: "ヤブガラシ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 上段左から5"),
+        CatalogItem(name: "ジシバリ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-jishibari", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-jishibari.png"),
+        CatalogItem(name: "ウラジロ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 下段左から2"),
+        CatalogItem(name: "ヤブラン", rarity: .n, kind: .plant, percentText: "1.875%", imageName: "plant-n-yaburan", imageExtension: ".png", standIn: true, sourceNote: "art/plant-n-yaburan.png"),
+        CatalogItem(name: "コケ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 下段左から4"),
+        CatalogItem(name: "スズメノカタビラ", rarity: .n, kind: .plant, percentText: "1.875%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "f5127931819ed7ce6750a8baac966e52a0fb23c9fdba595adc557bba2953f34e.jpg 下段左から5"),
+        CatalogItem(name: "雛菊", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 上段左から1"),
+        CatalogItem(name: "董", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 上段左から2"),
+        CatalogItem(name: "羊歯", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 上段左から3"),
+        CatalogItem(name: "石楠花", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 上段左から4"),
+        CatalogItem(name: "朝顔", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 下段左から1"),
+        CatalogItem(name: "パンジー", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 下段左から2"),
+        CatalogItem(name: "マリーゴールド", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 下段左から3"),
+        CatalogItem(name: "撫子", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "3593b945f93a4a808708093cd5d69a55bbfe6f40e1cf93226a858c5bfb33c3c9.jpg 下段左から4"),
+        CatalogItem(name: "日々草", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 上段左から1"),
+        CatalogItem(name: "ペチュニア", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 上段左から2"),
+        CatalogItem(name: "サルビア", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 上段左から3"),
+        CatalogItem(name: "シクラメン", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 上段左から4"),
+        CatalogItem(name: "ミモザ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 下段左から1"),
+        CatalogItem(name: "ネモフィラ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 下段左から2"),
+        CatalogItem(name: "シャガ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "555cfe99897f234669cd3ba1c8ab89143b873e78af96a2be73e836e49114c35a.jpg 下段左から3"),
+        CatalogItem(name: "ベゴニア", rarity: .r, kind: .plant, percentText: "0.833%", imageName: "plant-r-begonia", imageExtension: ".png", standIn: true, sourceNote: "art/plant-r-begonia.png"),
+        CatalogItem(name: "インパチエンス", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 上段左から1"),
+        CatalogItem(name: "ゼラニウム", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 上段左から2"),
+        CatalogItem(name: "マーガレット", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 上段左から3"),
+        CatalogItem(name: "ギボウシ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 上段左から4"),
+        CatalogItem(name: "オシロイバナ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 下段左から1"),
+        CatalogItem(name: "ホウセンカ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: "plant-r-housenka", imageExtension: ".png", standIn: true, sourceNote: "art/plant-r-housenka.png"),
+        CatalogItem(name: "キンセンカ", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 下段左から3"),
+        CatalogItem(name: "ストック", rarity: .r, kind: .plant, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "07f12cff2c11e80afea239862f91dc670a9fd19c042aed23a4a75c4d55ee0475.jpg 下段左から4"),
+        CatalogItem(name: "松", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 上段左から1"),
+        CatalogItem(name: "白椿", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 上段左から2"),
+        CatalogItem(name: "南天", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "1948048f901039aac206e7413c28b7cb869f45fffc69c23c415d01976c8d9a29.jpg 左から3"),
+        CatalogItem(name: "紫陽花", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 上段左から4"),
+        CatalogItem(name: "水仙", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 上段左から5"),
+        CatalogItem(name: "彼岸花", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 上段左から6"),
+        CatalogItem(name: "桔梗", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: "plant-sr-kikyo", imageExtension: ".png", standIn: true, sourceNote: "art/plant-sr-kikyo.png"),
+        CatalogItem(name: "沈丁花", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 下段左から2"),
+        CatalogItem(name: "蝋梅", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 下段左から3"),
+        CatalogItem(name: "紅葉", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 下段左から4"),
+        CatalogItem(name: "山茶花", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 下段左から5"),
+        CatalogItem(name: "リンドウ", rarity: .sr, kind: .plant, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "80806977783ff3f9da66e89c41da951e621c02c856223639cefe781ca6fdfd01.jpg 下段左から6"),
+        CatalogItem(name: "白菊", rarity: .ssr, kind: .plant, percentText: "0.125%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5850142246f2acc999bb6401850b3ddbf2331b66ae133d191c8433f771e454d1.jpg 左から1"),
+        CatalogItem(name: "百合", rarity: .ssr, kind: .plant, percentText: "0.125%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5850142246f2acc999bb6401850b3ddbf2331b66ae133d191c8433f771e454d1.jpg 左から2"),
+        CatalogItem(name: "藤", rarity: .ssr, kind: .plant, percentText: "0.125%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5850142246f2acc999bb6401850b3ddbf2331b66ae133d191c8433f771e454d1.jpg 左から3"),
+        CatalogItem(name: "ラフレシア", rarity: .ssr, kind: .plant, percentText: "0.125%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5850142246f2acc999bb6401850b3ddbf2331b66ae133d191c8433f771e454d1.jpg 左から4（成長段階は 092d2376f6572a9ad57d5cf8bac59bd813a273e4b75b304fe295c55fb4312661.jpg。再描画していない）"),
+    ]
+
+    static let pots: [CatalogItem] = [
+        CatalogItem(name: "丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r0c0", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 上段左から1"),
+        CatalogItem(name: "細筒", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r0c1", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 上段左から2"),
+        CatalogItem(name: "杯", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r0c2", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 上段左から3"),
+        CatalogItem(name: "角", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-kaku", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-kaku.png"),
+        CatalogItem(name: "浅鉢", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r0c4", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 上段左から5"),
+        CatalogItem(name: "深鉢", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r1c0", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 下段左から1"),
+        CatalogItem(name: "平鉢", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r1c1", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 下段左から2"),
+        CatalogItem(name: "小鉢", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r1c2", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 下段左から3"),
+        CatalogItem(name: "広口", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r1c3", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 下段左から4"),
+        CatalogItem(name: "筒鉢", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "b6c72_r1c4", imageExtension: ".jpg", standIn: false, sourceNote: "b6c72ae0a55c9512bacfca790eaa3037daec9e2c7468552871f4ba5fcde95e05.jpg 下段左から5"),
+        CatalogItem(name: "丸浅", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-maruasa", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-maruasa.png"),
+        CatalogItem(name: "丸深", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-marufuka", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-marufuka.png"),
+        CatalogItem(name: "角浅", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-kakiasa", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-kakiasa.png"),
+        CatalogItem(name: "角深", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-kakifuka", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-kakifuka.png"),
+        CatalogItem(name: "白土", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "c579_r0c4", imageExtension: ".jpg", standIn: false, sourceNote: "c5795d84f897f6c380dcc24c243efd8631b6271341390981089580940d6f3bde.jpg 上段左から5"),
+        CatalogItem(name: "灰土", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "c579_r1c0", imageExtension: ".jpg", standIn: false, sourceNote: "c5795d84f897f6c380dcc24c243efd8631b6271341390981089580940d6f3bde.jpg 下段左から1"),
+        CatalogItem(name: "砂土", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-sunatsuchi", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-sunatsuchi.png"),
+        CatalogItem(name: "素焼", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-suyaki", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-suyaki.png"),
+        CatalogItem(name: "粗土", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-aratsuchi", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-aratsuchi.png"),
+        CatalogItem(name: "淡土", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-awatsuchi", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-awatsuchi.png"),
+        CatalogItem(name: "小丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r0c0", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 上段左から1"),
+        CatalogItem(name: "大丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r0c1", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 上段左から2"),
+        CatalogItem(name: "低丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r0c2", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 上段左から3"),
+        CatalogItem(name: "高丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-takamaru", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-takamaru.png"),
+        CatalogItem(name: "口小", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r0c4", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 上段左から5"),
+        CatalogItem(name: "口大", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r1c0", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 下段左から1"),
+        CatalogItem(name: "腹丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r1c1", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 下段左から2"),
+        CatalogItem(name: "腹浅", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-harasa", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-harasa.png"),
+        CatalogItem(name: "茶碗", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r1c3", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 下段左から4"),
+        CatalogItem(name: "水皿", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "d1e1_r1c4", imageExtension: ".jpg", standIn: false, sourceNote: "d1e1d9d43eabf70cff0e408202b6826b0017a85ba080af89412704ea9386859e.jpg 下段左から5"),
+        CatalogItem(name: "六角", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r0c0", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 上段左から1"),
+        CatalogItem(name: "八角", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "pot-n-hakkaku", imageExtension: ".png", standIn: true, sourceNote: "art/pot-n-hakkaku.png"),
+        CatalogItem(name: "短筒", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r0c2", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 上段左から3"),
+        CatalogItem(name: "高筒", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r0c3", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 上段左から4"),
+        CatalogItem(name: "広筒", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r0c4", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 上段左から5"),
+        CatalogItem(name: "細丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r1c0", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 下段左から1"),
+        CatalogItem(name: "平丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r1c1", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 下段左から2"),
+        CatalogItem(name: "深丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r1c2", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 下段左から3"),
+        CatalogItem(name: "浅丸", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r1c3", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 下段左から4"),
+        CatalogItem(name: "並鉢", rarity: .n, kind: .pot, percentText: "1.875%", imageName: "59f2_r1c4", imageExtension: ".jpg", standIn: false, sourceNote: "59f2c1d38d9c6398256e454796f2520e17255465c0e8e48d2df0f37074d45db7.jpg 下段左から5"),
+        CatalogItem(name: "黒土", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r0c0", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 上段左から1"),
+        CatalogItem(name: "粉引", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r0c1", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 上段左から2"),
+        CatalogItem(name: "灰釉", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r0c2", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 上段左から3"),
+        CatalogItem(name: "白釉", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r0c3", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 上段左から4"),
+        CatalogItem(name: "乳白", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r1c0", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 下段左から1"),
+        CatalogItem(name: "鉄粉", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r1c1", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 下段左から2"),
+        CatalogItem(name: "志野", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r1c2", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 下段左から3"),
+        CatalogItem(name: "織部", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "f983_r1c3", imageExtension: ".jpg", standIn: false, sourceNote: "f9836cc348748017d222a2bb721cbadaff324e514ec9a8d59aa245626806d563.jpg 下段左から4"),
+        CatalogItem(name: "高台", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 上段左から1"),
+        CatalogItem(name: "脚付", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 上段左から2"),
+        CatalogItem(name: "耳付", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 上段左から3"),
+        CatalogItem(name: "片口", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 上段左から4"),
+        CatalogItem(name: "輪花", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 下段左から1"),
+        CatalogItem(name: "面取", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 下段左から2"),
+        CatalogItem(name: "布目", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 下段左から3"),
+        CatalogItem(name: "刷毛", rarity: .r, kind: .pot, percentText: "0.833%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "7e6febff7396bbcbf901c4f564070e910004d2645b8f1d9a7a9e9e522af847ec.jpg 下段左から4"),
+        CatalogItem(name: "青磁", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-seiji", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-seiji.png"),
+        CatalogItem(name: "黄瀬戸", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-kiseto", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-kiseto.png"),
+        CatalogItem(name: "信楽", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-shigaraki", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-shigaraki.png"),
+        CatalogItem(name: "三島", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-mishima", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-mishima.png"),
+        CatalogItem(name: "益子", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-mashiko", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-mashiko.png"),
+        CatalogItem(name: "京焼", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-kyo", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-kyo.png"),
+        CatalogItem(name: "徳利", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-tokkuri", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-tokkuri.png"),
+        CatalogItem(name: "刷毛目", rarity: .r, kind: .pot, percentText: "0.833%", imageName: "pot-r-hakeme", imageExtension: ".png", standIn: true, sourceNote: "art/pot-r-hakeme.png"),
+        CatalogItem(name: "石", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 上段左から1"),
+        CatalogItem(name: "砂岩", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 上段左から2"),
+        CatalogItem(name: "切立", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 上段左から3"),
+        CatalogItem(name: "鉄鉢", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 上段左から4"),
+        CatalogItem(name: "黒釉", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 上段左から5"),
+        CatalogItem(name: "窯変", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 上段左から6"),
+        CatalogItem(name: "砂鉢", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 下段左から1"),
+        CatalogItem(name: "石鉢", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 下段左から2"),
+        CatalogItem(name: "面取石", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 下段左から3"),
+        CatalogItem(name: "鎬", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 下段左から4"),
+        CatalogItem(name: "安山岩", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 下段左から5"),
+        CatalogItem(name: "花器", rarity: .sr, kind: .pot, percentText: "0.375%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "5f02d5a7e5d857a419a4d25bc7125b90df58bf2af03918dd1c2fdcc0e106844d.jpg 下段左から6"),
+        CatalogItem(name: "薄磁", rarity: .ssr, kind: .pot, percentText: "0.125%", imageName: nil, imageExtension: nil, standIn: false, sourceNote: "915b40d128511b3ea15fa2486bec3687918293a0ec0c9ea53a94c6e74118fdf8.jpg（側面。承認済み。再描画していない）"),
+        CatalogItem(name: "白磁", rarity: .ssr, kind: .pot, percentText: "0.125%", imageName: "pot-ssr-hakuji", imageExtension: ".png", standIn: true, sourceNote: "art/pot-ssr-hakuji.png"),
+        CatalogItem(name: "淡磁", rarity: .ssr, kind: .pot, percentText: "0.125%", imageName: "pot-ssr-tanji", imageExtension: ".png", standIn: true, sourceNote: "art/pot-ssr-tanji.png"),
+        CatalogItem(name: "灰磁", rarity: .ssr, kind: .pot, percentText: "0.125%", imageName: "pot-ssr-haiji", imageExtension: ".png", standIn: true, sourceNote: "art/pot-ssr-haiji.png"),
+    ]
+}
+
+enum DropPack: String, CaseIterable, Identifiable {
+    case forty = "yohaku_shizuku_40"
+    case oneFifty = "yohaku_shizuku_150"
+    case threeEighty = "yohaku_shizuku_380"
+    case twelveHundred = "yohaku_shizuku_1200"
+    case twentyTwoHundred = "yohaku_shizuku_2200"
+    case fiveThousand = "yohaku_shizuku_5000"
+
+    var id: String { rawValue }
+
+    var drops: Int {
+        switch self {
+        case .forty: 40
+        case .oneFifty: 150
+        case .threeEighty: 380
+        case .twelveHundred: 1200
+        case .twentyTwoHundred: 2200
+        case .fiveThousand: 5000
+        }
+    }
+
+    static func matching(_ productID: String) -> DropPack? {
+        DropPack(rawValue: productID)
     }
 }

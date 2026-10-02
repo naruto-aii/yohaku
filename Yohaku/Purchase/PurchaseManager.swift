@@ -4,7 +4,6 @@ import StoreKit
 
 enum ProductID {
     static let lifetime = "yohaku_lifetime"
-    static let seed = "yohaku_seed"
 }
 
 @MainActor
@@ -12,12 +11,12 @@ enum ProductID {
 final class PurchaseManager {
     private(set) var isUnlocked = false
     private(set) var product: Product?
-    private(set) var seedProduct: Product?
+    private(set) var packProducts: [Product] = []
     private(set) var isLoading = true
     private(set) var isPurchasing = false
-    private(set) var isBuyingSeed = false
+    private(set) var buyingPack: String?
     var statusNote: String?
-    var seedNote: String?
+    var packNote: String?
 
     @ObservationIgnored var onConsumable: ((UInt64, String) -> Void)?
     @ObservationIgnored private var updates: Task<Void, Never>?
@@ -36,15 +35,16 @@ final class PurchaseManager {
     func load() async {
         isLoading = true
         defer { isLoading = false }
+        let ids = [ProductID.lifetime] + DropPack.allCases.map(\.rawValue)
         do {
-            let products = try await Product.products(for: [ProductID.lifetime, ProductID.seed])
+            let products = try await Product.products(for: ids)
             product = products.first { $0.id == ProductID.lifetime }
-            seedProduct = products.first { $0.id == ProductID.seed }
-            await refreshEntitlements()
+            packProducts = products.filter { DropPack.matching($0.id) != nil }
         } catch {
             product = nil
-            seedProduct = nil
+            packProducts = []
         }
+        await refreshEntitlements()
     }
 
     func refreshEntitlements() async {
@@ -56,6 +56,10 @@ final class PurchaseManager {
             unlocked = true
         }
         isUnlocked = unlocked
+    }
+
+    func priceText(for pack: DropPack) -> String {
+        packProducts.first { $0.id == pack.rawValue }?.displayPrice ?? Copy.priceUnavailable
     }
 
     func purchase() async {
@@ -83,29 +87,29 @@ final class PurchaseManager {
         }
     }
 
-    func purchaseSeed() async {
-        guard let seedProduct, !isBuyingSeed else { return }
-        isBuyingSeed = true
-        defer { isBuyingSeed = false }
-        seedNote = nil
+    func purchase(pack: DropPack) async {
+        guard buyingPack == nil, let product = packProducts.first(where: { $0.id == pack.rawValue }) else { return }
+        buyingPack = pack.rawValue
+        defer { buyingPack = nil }
+        packNote = nil
         do {
-            let result = try await seedProduct.purchase()
+            let result = try await product.purchase()
             switch result {
             case .success(let verification):
                 let transaction = try verified(verification)
                 await accept(transaction)
-                seedNote = Copy.seedAdded
+                packNote = Copy.received(Copy.drops)
             case .userCancelled:
                 break
             case .pending:
-                seedNote = Copy.purchasePending
+                packNote = Copy.purchasePending
             @unknown default:
                 break
             }
         } catch StoreKitError.userCancelled {
             return
         } catch {
-            seedNote = Copy.purchaseFailed
+            packNote = Copy.purchaseFailed
         }
     }
 
@@ -126,7 +130,7 @@ final class PurchaseManager {
     }
 
     private func accept(_ transaction: Transaction) async {
-        if transaction.productID == ProductID.seed {
+        if DropPack.matching(transaction.productID) != nil {
             onConsumable?(transaction.id, transaction.productID)
         }
         await transaction.finish()

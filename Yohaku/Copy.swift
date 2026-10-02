@@ -8,6 +8,7 @@ enum Copy {
     static let streak = "連続"
     static let settings = "設定"
     static let close = "閉じる"
+    static let back = "戻る"
 
     static let start = "開始"
     static let pause = "一時停止"
@@ -48,37 +49,45 @@ enum Copy {
 
     static let shelf = "棚"
     static let pull = "引く"
+    static let tenPull = "10回引く"
+    static let oddsTitle = "出るもの"
+    static let packs = "しずく"
+    static let drops = "しずく"
     static let potWord = "鉢"
     static let plantWord = "植物"
-    static let grow = "育てる"
-    static let pullThing = "引くもの"
-    static let odds = "N 75%、R 20%、SR 4.5%、SSR 0.5%。同じ稀少度のなかでは、どれも同じ割合です。"
-    static let materialHint = "集中が 60 分たまると、一つ増えます。"
-    static let shelfEmpty = "咲いた花は、ここに並びます。"
-    static let notGrowing = "まだ育っていません。"
-    static let seedTitle = "育てるものを足す"
-    static let seedDetail = "引くものを三つと、12 時間。育っている花があれば、その時間に足します。"
-    static let addSeed = "足す"
-    static let seedAdded = "足しました。"
-    static let seedMissing = "この環境では製品を読み込めません。製品 ID は yohaku_seed です。"
+    static let begin = "始める"
+    static let continueGrow = "続ける"
+    static let place = "棚に置く"
+    static let nickname = "名前"
+    static let nicknameHint = "空でも置けます。"
+    static let shelfEmpty = "咲いた組み合わせは、ここに並びます。"
+    static let tutorialLead = "はじめに、植物を一つ、鉢を一つ受け取ります。"
+    static let tutorialPlant = "植物を引く"
+    static let tutorialPot = "鉢を引く"
+    static let tutorialDone = "蒲公英と丸から始まります。"
+    static let chooseNoise = "音"
+    static let choosePlant = "育てる植物"
+    static let choosePot = "使う鉢"
+    static let nothingFree = "空いているものがありません。"
+    static let standIn = "差し替えの仮の平面イラスト"
+    static let noPicture = "絵のファイルはボード上の位置だけが残っています。"
+    static let packLead = "価格は App Store で表示されます。"
+    static let oddsLead = "枠の中の一つずつです。"
 
     static func received(_ name: String) -> String {
         "\(name)を受け取りました。"
     }
 
-    static func duplicateHours(kind: String, hours: String, bloomed: Bool) -> String {
-        var text = "持っている\(kind)です。育っている植物に \(hours) 時間たしました。"
-        if bloomed {
-            text += "花が咲き、棚に置きました。"
-        }
-        return text
+    static func overflow(name: String, hours: String) -> String {
+        "所持が80の\(name)です。数は増やさず、育ちの時間に \(hours) 時間足しました。"
     }
 
-    static func duplicateMaterial(kind: String) -> String {
-        "持っている\(kind)です。引くものが 0.5 増えました。二つで一回引けます。"
+    static func holding(_ count: Int) -> String {
+        "所持 \(count)"
     }
 
-    static func pendingHours(_ hours: String) -> String {
-        "次に育て始めると、\(hours) 時間から始まります。"
+    static func stageCount(_ index: Int) -> String {
+        let shown = min(GrowthMath.stageCount, index)
+        return "\(shown)/\(GrowthMath.stageCount)"
     }
 }

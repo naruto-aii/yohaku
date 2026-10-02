@@ -18,12 +18,15 @@ final class AppModel {
             self?.garden.recordFocus(seconds: seconds)
         }
         purchases.onConsumable = { [weak self] id, productID in
-            guard productID == ProductID.seed else { return }
-            self?.garden.grantSeed(transactionID: id)
+            self?.garden.grantPack(transactionID: id, productID: productID)
+        }
+        session.onFocusBegan = { [weak self] in
+            self?.garden.noteFocusBegan()
         }
         session.onFocusCompleted = { [weak self] in
             guard let self else { return }
             self.streak.recordCompletion(persist: self.purchases.isUnlocked)
+            self.garden.noteSessionEnded()
         }
         session.onChime = { [weak self] in
             self?.noise.playChime()

@@ -20,8 +20,8 @@
 		E1A100000000000000000033 /* PaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000032 /* PaySheet.swift */; };
 		E1A10000000000000000003B /* Catalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000003A /* Catalog.swift */; };
 		E1A10000000000000000003D /* GardenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000003C /* GardenStore.swift */; };
-		E1A10000000000000000003F /* PotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A10000000000000000003E /* PotView.swift */; };
 		E1A100000000000000000041 /* PlantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000040 /* PlantView.swift */; };
+		E1A100000000000000000047 /* CatalogArt in Resources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000048 /* CatalogArt */; };
 		E1A100000000000000000043 /* ShelfSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000042 /* ShelfSheet.swift */; };
 		E1A100000000000000000045 /* PullSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000044 /* PullSheet.swift */; };
 		E1A100000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1A100000000000000000038 /* Assets.xcassets */; };
@@ -42,8 +42,8 @@
 		E1A100000000000000000032 /* PaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaySheet.swift; sourceTree = "<group>"; };
 		E1A10000000000000000003A /* Catalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Catalog.swift; sourceTree = "<group>"; };
 		E1A10000000000000000003C /* GardenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenStore.swift; sourceTree = "<group>"; };
-		E1A10000000000000000003E /* PotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotView.swift; sourceTree = "<group>"; };
 		E1A100000000000000000040 /* PlantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlantView.swift; sourceTree = "<group>"; };
+		E1A100000000000000000048 /* CatalogArt */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CatalogArt; sourceTree = "<group>"; };
 		E1A100000000000000000042 /* ShelfSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfSheet.swift; sourceTree = "<group>"; };
 		E1A100000000000000000044 /* PullSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullSheet.swift; sourceTree = "<group>"; };
 		E1A100000000000000000034 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -89,7 +89,6 @@
 			children = (
 				E1A10000000000000000003A /* Catalog.swift */,
 				E1A10000000000000000003C /* GardenStore.swift */,
-				E1A10000000000000000003E /* PotView.swift */,
 				E1A100000000000000000040 /* PlantView.swift */,
 			);
 			path = Garden;
@@ -130,6 +129,7 @@
 				E1A100000000000000000035 /* PrivacyInfo.xcprivacy */,
 				E1A100000000000000000037 /* Products.storekit */,
 				E1A100000000000000000038 /* Assets.xcassets */,
+				E1A100000000000000000048 /* CatalogArt */,
 				E1A100000000000000000010 /* Design */,
 				E1A100000000000000000011 /* Views */,
 				E1A100000000000000000012 /* Audio */,
@@ -215,6 +215,7 @@
 			files = (
 				E1A100000000000000000039 /* Assets.xcassets in Resources */,
 				E1A100000000000000000036 /* PrivacyInfo.xcprivacy in Resources */,
+				E1A100000000000000000047 /* CatalogArt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -238,7 +239,6 @@
 				E1A100000000000000000033 /* PaySheet.swift in Sources */,
 				E1A10000000000000000003B /* Catalog.swift in Sources */,
 				E1A10000000000000000003D /* GardenStore.swift in Sources */,
-				E1A10000000000000000003F /* PotView.swift in Sources */,
 				E1A100000000000000000041 /* PlantView.swift in Sources */,
 				E1A100000000000000000043 /* ShelfSheet.swift in Sources */,
 				E1A100000000000000000045 /* PullSheet.swift in Sources */,

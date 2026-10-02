@@ -24,6 +24,7 @@ final class FocusSession {
 
     @ObservationIgnored var onFocusCompleted: (() -> Void)?
     @ObservationIgnored var onFocusElapsed: ((TimeInterval) -> Void)?
+    @ObservationIgnored var onFocusBegan: (() -> Void)?
     @ObservationIgnored var onChime: (() -> Void)?
     @ObservationIgnored private var endDate: Date?
     @ObservationIgnored private var focusAccountedAt: Date?
@@ -64,6 +65,9 @@ final class FocusSession {
         isRunning = true
         endDate = now.addingTimeInterval(remaining)
         focusAccountedAt = phase == .focus ? now : nil
+        if phase == .focus {
+            onFocusBegan?()
+        }
         startTicking()
     }
 
