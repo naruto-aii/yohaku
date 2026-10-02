@@ -1,0 +1,172 @@
+{
+  "identifier" : "E1A1B100-0000-4000-8000-000000000001",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4980",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000002",
+      "localizations" : [
+        {
+          "description" : "ピンク、ブラウン、雨、集中と休憩の長さ、連続の保存。",
+          "displayName" : "余白をひらく",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_lifetime",
+      "referenceName" : "Lifetime Unlock",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "160",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000011",
+      "localizations" : [
+        {
+          "description" : "しずく 40。",
+          "displayName" : "しずく 40",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_shizuku_40",
+      "referenceName" : "Shizuku 40",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "480",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000012",
+      "localizations" : [
+        {
+          "description" : "しずく 150。",
+          "displayName" : "しずく 150",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_shizuku_150",
+      "referenceName" : "Shizuku 150",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "1000",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000013",
+      "localizations" : [
+        {
+          "description" : "しずく 380。",
+          "displayName" : "しずく 380",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_shizuku_380",
+      "referenceName" : "Shizuku 380",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2900",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000014",
+      "localizations" : [
+        {
+          "description" : "しずく 1200。",
+          "displayName" : "しずく 1200",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_shizuku_1200",
+      "referenceName" : "Shizuku 1200",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4900",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000015",
+      "localizations" : [
+        {
+          "description" : "しずく 2200。",
+          "displayName" : "しずく 2200",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_shizuku_2200",
+      "referenceName" : "Shizuku 2200",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "10000",
+      "familyShareable" : false,
+      "internalID" : "E1A1B100-0000-4000-8000-000000000016",
+      "localizations" : [
+        {
+          "description" : "しずく 5000。",
+          "displayName" : "しずく 5000",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "yohaku_shizuku_5000",
+      "referenceName" : "Shizuku 5000",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "ja_JP",
+    "_storefront" : "JPN",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
